@@ -162,23 +162,23 @@ before any push, regardless of everything else.
 
 ### Change tiers
 
-| Tier | What it is | Architect | QA | Security | Model |
-|------|-----------|-----------|-----|---------|-------|
-| **NON-CODE** | Doc analysis, reading, planning, brainstorming, questions, summaries | — | — | — | — |
-| **DISPLAY** | Adding fields to read queries, UI copy, styles, formatting | — | — | — | — |
-| **DEPS** | Patch/minor dependency bump that passes the cooldown gate (if any) | — | — | — | — |
-| **LOGIC** | New mutation, new stateful component, new hook, new util | — | Yes | — | Sonnet |
-| **SECURITY** | Authorization rule (RLS/policy/guard), privileged function, auth, payments/subscriptions | — | Yes | Yes | Opus + Sonnet |
-| **DATA-MIGRATION** | Data UPDATE/backfill with no schema change | — | Yes | Yes | Opus + Sonnet |
-| **SCHEMA** | New table, column, index, FK, migration | Yes | Yes | Yes | Opus + Sonnet |
-| **FEATURE** | New feature crossing layers (schema + authorization + UI) | Yes | Yes | Yes | Opus + Sonnet |
+| Tier | What it is | Architect | QA | Security |
+|------|-----------|-----------|-----|---------|
+| **NON-CODE** | Doc analysis, reading, planning, brainstorming, questions, summaries | — | — | — |
+| **DISPLAY** | Adding fields to read queries, UI copy, styles, formatting | — | — | — |
+| **DEPS** | Patch/minor dependency bump that passes the cooldown gate (if any) | — | — | — |
+| **LOGIC** | New mutation, new stateful component, new hook, new util | — | Yes | — |
+| **SECURITY** | Authorization rule (RLS/policy/guard), privileged function, auth, payments/subscriptions | — | Yes | Yes |
+| **DATA-MIGRATION** | Data UPDATE/backfill with no schema change | — | Yes | Yes |
+| **SCHEMA** | New table, column, index, FK, migration | Yes | Yes | Yes |
+| **FEATURE** | New feature crossing layers (schema + authorization + UI) | Yes | Yes | Yes |
 
-_Model: Opus → Architect and Security. Sonnet → QA, Frontend, Backend.
-Always use the alias (`opus`/`sonnet`), never pinned model IDs — aliases
-track the newest version of the family automatically. The split is a cost
-default, not a requirement: any model can sit in any role, and the
-orchestrator may change it per task. What does not change with the model
-is who may write — reviewers don't._
+_This table answers one question: **does this change need a reviewer, and
+which one**. That is a question about risk. Which model does the work is a
+different question, answered by the task's difficulty — see "Sizing the
+model" below. This table used to carry a "Model" column that bound a model
+to each role; that was a mistake, and the reason it was one is worth
+reading before you copy the table anywhere._
 
 <!-- ADAPT: if the project has no database of its own, no payments, or no
 concept of "schema", remove/merge the tiers that don't apply (see
@@ -220,8 +220,9 @@ not the process.
 **Token cost — the budget overlay (reading `docs/token-costs.md` is
 mandatory).** This flow's agent fan-out is expensive when used at full
 strength on every change. Summary rules (full R1-R7 in the doc): 1 recon
-agent, not several in parallel + a Plan; the expensive model (Opus) ONLY
-for Architect/Security; verify ONCE (agent OR orchestrator, never both);
+agent, not several in parallel + a Plan; the expensive model only where the
+task's difficulty needs it, which is usually the adversarial review and
+almost never the mechanical work; verify ONCE (agent OR orchestrator, never both);
 context hygiene between work blocks (keep the conclusion, not the whole
 report); a light lane for LOGIC/additive tiers; the FULL fan-out is
 reserved for multi-layer FEATURE work with a real attack surface — it
@@ -234,6 +235,29 @@ That is wrong. Before writing any code of tier >= LOGIC, stop and check:
 before writing. Implementing and then asking Security for a review is not
 the same as Security before implementing — Security can find problems that
 change the design, not just the code.
+
+### Sizing the model
+
+**Risk decides whether a review happens. Difficulty decides which model
+does the work.** Two questions, two different inputs. Collapsing them is
+expensive in both directions, because a role does not have a difficulty —
+tasks do, and the same role gets trivial ones and brutal ones:
+
+| Task | Model bound to the role | Model sized to the task |
+|------|-------------------------|-------------------------|
+| Run the test suite | cheap — fine | cheap |
+| Hunt a double-charge race condition | cheap, because "it's QA" — too weak | expensive |
+| Rename a config key | expensive, because "it's the architect" — overpaid | cheap |
+| Design the retry policy | expensive — fine | expensive |
+
+So the caller sizes the model to the task in front of it, per invocation.
+The `model:` in an agent's file is the fallback for when the caller does
+not decide, not a rule about that role. Skills can carry the same
+declaration (see "Skills"), and both are overridden per call.
+
+Always use aliases (`opus`, `sonnet`, `haiku`), never pinned model IDs —
+aliases track the newest version of the family automatically. What does not
+change with the model is who may write. Reviewers don't.
 
 **Precedence, when two rules seem to disagree:**
 - The tier table names the mandatory agents. R5 in `docs/token-costs.md`
@@ -309,12 +333,12 @@ loaded: a frontmatter with invalid YAML — the classic case is `: ` (colon
 SILENTLY. Descriptions containing `:` always go in quotes; that lesson
 cost months of "installed" agents that never loaded in the source project.
 
-**Model per agent**: set in each file's frontmatter (`model:`), applied
-automatically by the harness (see the "Model" column in the tier table):
-- `model: opus` → Architect, Security, Product (critical decisions, security analysis)
-- `model: sonnet` → QA, Frontend, Backend (implementation, tests, mechanical code)
-- Always use the alias (`opus`, `sonnet`), never a pinned ID — the alias
-  tracks the newest version of the family automatically.
+**Model per agent**: the `model:` in each file's frontmatter is a
+**fallback**, applied by the harness when the caller picks nothing. The
+defaults ship expensive for Architect, Security and Product and cheaper for
+QA, Frontend and Backend, because that is where the difficulty usually
+sits — not because a role owns a model. Any call may override it (see
+"Sizing the model"), and an agent file with no `model:` inherits.
 
 **Tools per agent**: reviewers don't write. `security` and `architect`
 have `tools: Read, Grep, Glob, Bash` in the frontmatter; `product` has
@@ -394,11 +418,30 @@ frontmatter pattern — replicate them when the project grows enough to
 justify it. Don't copy them just because they existed there; every new
 skill is one more file to keep in sync with the flow. -->
 
-Skills live in `.claude/skills/<name>/SKILL.md` with frontmatter (`name`,
-`description`); agents in `.claude/agents/<name>.md`, also with
-frontmatter including `model`. Confirm the harness in use loads skills
-from this folder before assuming `/name` runs anything — a loose `.md`
-file outside the expected structure is not discovered, silently.
+Skills live in `.claude/skills/<name>/SKILL.md` with frontmatter. Beyond
+`name` and `description`, two fields decide *where* and *how* a skill runs,
+and both are worth setting deliberately instead of by default:
+
+- **`model:`** — an alias (`opus`, `sonnet`, `haiku`) or `inherit`. The
+  skill runs on that model instead of the session's. Choose it by the
+  difficulty of the work the skill does.
+- **`context: fork`** (with `agent: <type>`, optionally `background:`) —
+  the skill runs in a separate context as a subagent instead of loading its
+  instructions into the main one. This is the mechanical form of "the
+  reviewer did not write the code": a forked review arrives without the
+  implementation's reasoning sitting in its context.
+
+`/security-check` ships forked onto the Security agent, for exactly that
+reason. `/db-migration` ships with `model: inherit` and stays in the main
+loop, because writing a migration needs the project's context, not a clean
+one.
+
+Agents live in `.claude/agents/<name>.md`, also with frontmatter. Confirm
+the harness in use loads skills from this folder before assuming `/name`
+runs anything — a loose `.md` file outside the expected structure is not
+discovered, silently. The two fields above need a recent Claude Code; where
+the harness does not know them, the skill still runs, just inline and on
+the session's model.
 
 ---
 

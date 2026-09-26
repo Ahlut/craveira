@@ -132,8 +132,19 @@ agent — the one you talk to. The six files in `agents/` are not six agents
 running; they are the role cards the lead agent hands out when the tier
 table says a change deserves a second pair of eyes, and it decides when to
 do that. The verticals (frontend, backend) are context hygiene, not
-architecture — collapse them if your project doesn't need the split. Models
-are a cost default, swapped per task.
+architecture — collapse them if your project doesn't need the split. The
+model follows the task, not the role: risk decides whether a review
+happens, difficulty decides which model does the work.
+
+It also matters which shape the objection is aimed at. The failure numbers
+usually cited against multi-agent setups — 1,642 runs across 7 frameworks,
+41–87% failure rates, roughly a third of those failures from agents
+misaligned with each other (Cemri et al., *Why Do Multi-Agent LLM Systems
+Fail?*, arXiv 2503.13657) — measure agents handing work down a chain with
+nobody watching. Batuta has no chain. Findings come back to the one context
+that holds the decisions, agents never hand work to each other, and a human
+signs every commit. The design is a response to those failures rather than
+an instance of them, and that is the reason the flow is shaped this way.
 
 The other half is where Batuta deliberately disagrees: the agent grading
 its own pipeline. A review inside the same context can still find problems,

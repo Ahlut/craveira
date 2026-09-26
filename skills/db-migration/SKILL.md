@@ -1,6 +1,7 @@
 ---
 name: db-migration
 description: Creates, validates and documents a schema migration — writes the file in the migrations folder, produces the rollback script and records the migration in the migrations-state doc. Use in the SCHEMA or DATA-MIGRATION tiers.
+model: inherit
 ---
 
 Creates, validates and documents a schema migration.

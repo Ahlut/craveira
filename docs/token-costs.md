@@ -15,10 +15,14 @@ feature with a wide scope, instead of several in parallel plus a planning
 agent. A dedicated planning agent only when the design is genuinely
 uncertain; otherwise the orchestrator designs inline from the recon.
 
-**R2 — Model by cost, for real.** The expensive model (e.g. Opus) only for
-Architect and Security (critical decisions). Recon and QA can run on the
-mid-tier model (Sonnet) — or the cheapest (Haiku) for purely mechanical
-recon. **Fewer agents** matters even more than **cheaper agents**.
+**R2 — Model by difficulty, not by role.** The expensive model only where
+the task is genuinely hard: the adversarial review, the design decision,
+the race condition nobody can reproduce. Mechanical recon and mechanical
+test-writing run on the cheapest model that does the job. Binding the model
+to a role instead of a task overpays on the trivial work that role picks up
+and underpowers the hard work that lands on a cheaper role — see "Sizing
+the model" in `CLAUDE.md`. **Fewer agents** matters even more than
+**cheaper agents**.
 
 _Shortcut in Claude Code: the **Explore** subagent (read-only, cheap model,
 returns the conclusion instead of file dumps) is literally the R1+R2

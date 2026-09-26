@@ -4,6 +4,11 @@
 // An unquoted `description` containing ": " is invalid YAML, and the harness
 // then ignores the agent silently — the file looks installed and never
 // loads. This is not a YAML parser; it catches the known way that fails.
+//
+// `model` is deliberately NOT required: the model follows the task, and the
+// frontmatter value is only the fallback when the caller picks nothing. It
+// is validated when present. A skill that declares `context: fork` must also
+// name the `agent:` it forks onto, or the fork has no role to run as.
 
 'use strict';
 
@@ -41,14 +46,26 @@ function checkFile(file, requiredKeys) {
   for (const k of requiredKeys) {
     if (!keys.has(k) || !keys.get(k).trim()) fail(`${rel}: missing frontmatter key "${k}"`);
   }
-  if (keys.has('model') && !/^(opus|sonnet|haiku)$/.test(keys.get('model').trim())) {
-    fail(`${rel}: model must be an alias (opus/sonnet/haiku), got "${keys.get('model')}"`);
+  if (keys.has('model') && !/^(opus|sonnet|haiku|inherit)$/.test(keys.get('model').trim())) {
+    fail(`${rel}: model must be an alias (opus/sonnet/haiku) or inherit, got "${keys.get('model')}"`);
+  }
+  if (keys.has('context')) {
+    if (keys.get('context').trim() !== 'fork') {
+      fail(`${rel}: the only supported context is "fork", got "${keys.get('context')}"`);
+    } else if (!keys.has('agent') || !keys.get('agent').trim()) {
+      fail(`${rel}: "context: fork" needs an "agent:" to fork onto`);
+    } else {
+      const agentFile = path.join(ROOT, 'agents', keys.get('agent').trim() + '.md');
+      if (!fs.existsSync(agentFile)) {
+        fail(`${rel}: forks onto "${keys.get('agent').trim()}", which has no file in agents/`);
+      }
+    }
   }
   ok(rel);
 }
 
 for (const f of fs.readdirSync(path.join(ROOT, 'agents')).filter((f) => f.endsWith('.md'))) {
-  checkFile(path.join(ROOT, 'agents', f), ['name', 'description', 'model']);
+  checkFile(path.join(ROOT, 'agents', f), ['name', 'description']);
 }
 for (const d of fs.readdirSync(path.join(ROOT, 'skills'))) {
   const f = path.join(ROOT, 'skills', d, 'SKILL.md');
